@@ -5,9 +5,9 @@ Created on Tue Sep 13 12:16:12 2016
 @author: CE
 """
 
+import random
 import numpy as np
 from copy import deepcopy
-from random import randint
 
 class Solver(object):
     
@@ -82,23 +82,23 @@ class Solver(object):
             if s == state:
                 self.utility[index] = value
                 return
-        
-    def init_policy(self):
-        for state in self.states:
-            actions = self.get_applicable_actions(state)
-            if len(actions) == 0: continue
-            rnd = randint(0, len(actions)-1)
-            self.update_policy(state, actions[rnd])
     
     def update_policy(self, state, action):
         for index, s in enumerate(self.states):
             if s == state:
                 self.policy[index] = action
                 return
+                
+    def get_policy_action(self, state):
+        for index, s in enumerate(self.states):
+            if s == state:
+                return self.policy[index]
     
     def value_iteration(self, eps):
+        counter = 0
         while True:
             delta = 0
+            counter += 1
             for state in self.states:
                 actions = self.get_applicable_actions(state)
                 if len(actions) == 0: continue
@@ -119,21 +119,69 @@ class Solver(object):
                 self.update_utility(state, max_utility)
                 self.update_policy(state, best_action)
             if delta < eps:
+                print(counter)
                 return
                 
+    
+    def policy_evaluation(self):
+        rewards = []
+        u_matrix = np.zeros((len(self.states), len(self.states)))
+        for state in solver.states:
+            action = solver.get_policy_action(state)
+            if action == None: 
+                rewards.append(0)        
+                continue
+            transitions = solver.get_transition_probability(state, action)
+            rewards.append(sum(p * solver.get_reward(s1, action) for (p, s1) in transitions))        
+        
+        for i, state1 in enumerate(solver.states):
+            action = solver.get_policy_action(state1)
+            if action == None: 
+                u_matrix[i][i] += 1
+                continue
+            transitions = solver.get_transition_probability(state1, action)
+            for j, state2 in enumerate(solver.states):
+                if i == j: u_matrix[i][j] += 1
+                if state2 == transitions[0][1]:
+                    p = transitions[0][0]
+                elif state2 == transitions[1][1]:
+                    p = transitions[1][0]
+                else:
+                    p = 0
+                u_matrix[i][j] -= solver.gamma * p
+        rewards = np.array(rewards)
+        solver.utility = np.linalg.solve(u_matrix, rewards)
+    
+    
+    def init_policy(self):
+        for index, state in enumerate(self.states):
+            actions = self.get_applicable_actions(state)
+            if len(actions) == 0: continue
+            self.policy[index] = random.choice(actions)
+    
     def policy_iteration(self):
         self.init_policy()
         while True:
+            self.policy_evaluation()
             unchanged = True
             for state in self.states:
                 actions = self.get_applicable_actions(state)
                 if len(actions) == 0: continue
+                state_utilities = []
+                state_actions = []
                     
                 for action in actions: 
-                    max_a = None #argmax(self.get_applicable_actions(state), lambda a: )
-                    if(self.get_policy_action(state) != max_a):
-                        self.update_policy(max_a)
-                        unchanged = False
+                    transitions = self.get_transition_probability(state, action)
+                    reward = sum(p * self.get_reward(s1, action) for (p, s1) in transitions)
+                    utility = reward + self.gamma * sum(p * self.get_utility(s1) for (p, s1) in transitions)
+                    state_utilities.append(utility)
+                    state_actions.append(action)
+                
+                index_max = state_utilities.index(max(state_utilities))
+                best_action = state_actions[index_max]
+                if(self.get_policy_action(state) != best_action):
+                    self.update_policy(state, best_action)
+                    unchanged = False
             if unchanged:
                 return
     
@@ -185,4 +233,5 @@ class TowerOfHanoi(object):
         return False
 
 solver = Solver()
-solver.value_iteration(0.000001);
+solver.value_iteration(0.000001)
+#solver.policy_iteration()
